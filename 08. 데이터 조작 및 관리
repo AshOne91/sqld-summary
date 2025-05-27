@@ -1,0 +1,134 @@
+좋아, SQLD \*\*8. 데이터 조작 및 관리(Data Manipulation and Management)\*\*는 실무에서 가장 자주 사용하는 부분이야. 이 단원은 **테이블에 데이터를 넣고, 바꾸고, 삭제하고, 트랜잭션을 관리하는 핵심 명령어**들을 다루지.
+
+---
+
+## ✅ 1. DML (Data Manipulation Language)
+
+### 🔹 INSERT – 데이터 삽입
+
+```sql
+-- 전체 컬럼 순서대로 삽입
+INSERT INTO employees VALUES (1001, '홍길동', 'SALES', 3000);
+
+-- 특정 컬럼 지정 삽입
+INSERT INTO employees (emp_id, name, dept, salary)
+VALUES (1002, '이순신', 'HR', 2800);
+```
+
+---
+
+### 🔹 UPDATE – 기존 데이터 수정
+
+```sql
+-- 단일 행 수정
+UPDATE employees
+SET salary = 3200
+WHERE emp_id = 1001;
+
+-- 조건에 맞는 다수 행 수정
+UPDATE employees
+SET dept = 'MARKETING'
+WHERE dept = 'SALES';
+```
+
+---
+
+### 🔹 DELETE – 행 삭제
+
+```sql
+-- 조건에 맞는 행 삭제
+DELETE FROM employees
+WHERE emp_id = 1001;
+
+-- 테이블 전체 데이터 삭제 (주의)
+DELETE FROM employees;
+```
+
+---
+
+## ✅ 2. MERGE – 조건에 따라 INSERT 또는 UPDATE (UPSERT)
+
+```sql
+MERGE INTO employees e
+USING new_employees n
+ON (e.emp_id = n.emp_id)
+WHEN MATCHED THEN
+  UPDATE SET e.salary = n.salary
+WHEN NOT MATCHED THEN
+  INSERT (emp_id, name, salary)
+  VALUES (n.emp_id, n.name, n.salary);
+```
+
+* `WHEN MATCHED`: 키가 존재 → UPDATE
+* `WHEN NOT MATCHED`: 키 없음 → INSERT
+
+---
+
+## ✅ 3. 트랜잭션 제어 (Transaction Control)
+
+### 트랜잭션 = 논리적 작업 단위 (All or Nothing)
+
+| 명령어         | 설명              |
+| ----------- | --------------- |
+| `COMMIT`    | 모든 변경사항을 **확정** |
+| `ROLLBACK`  | 모든 변경사항을 **취소** |
+| `SAVEPOINT` | 롤백 포인트 설정       |
+
+```sql
+BEGIN;  -- 트랜잭션 시작
+
+UPDATE employees SET salary = salary + 100;
+
+SAVEPOINT point1;
+
+UPDATE employees SET dept = 'HR' WHERE emp_id = 1002;
+
+ROLLBACK TO point1;  -- HR 변경 취소, salary 변경은 유지
+
+COMMIT;  -- 최종 확정
+```
+
+---
+
+## ✅ 4. DCL (Data Control Language)
+
+### 🔹 권한 부여 / 회수
+
+```sql
+-- 권한 부여
+GRANT SELECT, INSERT ON employees TO user1;
+
+-- 권한 회수
+REVOKE INSERT ON employees FROM user1;
+```
+
+* `GRANT`: 사용자에게 권한 부여
+* `REVOKE`: 권한 회수
+
+---
+
+## ✅ 5. TCL vs DML vs DDL
+
+| 분류  | 설명     | 예시                           | 트랜잭션 롤백 가능?        |
+| --- | ------ | ---------------------------- | ------------------ |
+| DML | 데이터 조작 | `INSERT`, `UPDATE`, `DELETE` | ✅ 가능               |
+| DDL | 데이터 정의 | `CREATE`, `ALTER`, `DROP`    | ❌ 불가능 (자동 COMMIT됨) |
+| DCL | 권한 제어  | `GRANT`, `REVOKE`            | ❌ 불가능 (자동 COMMIT됨) |
+
+---
+
+## ✅ 자주 나오는 시험 포인트 정리
+
+| 내용              | 핵심 요약                  |
+| --------------- | ---------------------- |
+| INSERT          | `VALUES`, 컬럼 지정 여부 유의  |
+| UPDATE          | `WHERE` 없으면 전부 수정됨     |
+| DELETE          | `WHERE` 없으면 전부 삭제됨     |
+| MERGE           | 조건 따라 INSERT/UPDATE 결정 |
+| COMMIT/ROLLBACK | 트랜잭션 전후 흐름 이해          |
+| SAVEPOINT       | 중간 롤백 지점 설정 가능         |
+| GRANT/REVOKE    | 객체 수준 권한 제어 가능         |
+
+---
+
+필요하면 INSERT~~MERGE~~ROLLBACK까지 이어지는 실습 시나리오도 예제로 만들어줄게. 원해?
