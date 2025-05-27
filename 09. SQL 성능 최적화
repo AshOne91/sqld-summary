@@ -1,0 +1,159 @@
+좋아, SQLD **09. SQL 성능 최적화**는 **느린 SQL을 빠르게 만들기 위한 핵심 원리**를 배우는 파트야. 실무에서 매우 중요하며 시험에서도 자주 출제돼.
+→ 핵심 키워드: **인덱스, 실행계획, 불필요한 연산 제거, 조인 순서 최적화, 서브쿼리 개선** 등
+
+---
+
+## ✅ 1. 인덱스(Index) 이해
+
+### 🔹 인덱스란?
+
+* **WHERE 조건 검색 속도**를 빠르게 하기 위한 **책갈피**
+* B-Tree 기반 구조로, 해당 컬럼으로 조건 검색 시 빠름
+
+### 🔹 인덱스가 잘 작동하는 경우
+
+```sql
+SELECT * FROM employees WHERE emp_id = 1001;
+-- emp_id가 인덱스이면 매우 빠름
+```
+
+### 🔹 인덱스를 잘 쓰려면?
+
+* `WHERE`, `JOIN`, `ORDER BY`, `GROUP BY` 조건에 자주 쓰는 컬럼
+* 자주 조회되고, **선택도(희소성)가 높은 컬럼** (예: 주민번호, 사번 등)
+
+---
+
+## ✅ 2. 실행계획(EXPLAIN PLAN)
+
+### 🔹 실행계획이란?
+
+* SQL 실행 시 **어떤 방식으로 읽고 처리하는지**를 보여주는 계획
+* 인덱스를 쓰는지, 풀 스캔인지 확인 가능
+
+```sql
+EXPLAIN PLAN FOR
+SELECT * FROM employees WHERE emp_id = 1001;
+```
+
+→ 실행계획에서 `INDEX RANGE SCAN`, `TABLE ACCESS FULL` 등을 통해 성능 판단 가능
+
+---
+
+## ✅ 3. 비효율적 SQL 패턴 (성능 저하 유발)
+
+| 문제 유형  | 예시                              | 대안                                     |
+| ------ | ------------------------------- | -------------------------------------- |
+| 함수 사용  | `WHERE UPPER(name) = 'KIM'`     | → **인덱스 무력화**, 대신 `WHERE name = 'KIM'` |
+| 와일드카드  | `LIKE '%ABC%'`                  | → 앞에 `%` 있으면 인덱스 무용                    |
+| NOT 연산 | `NOT IN`, `!=`                  | → 인덱스 사용 안 됨                           |
+| OR 조건  | `WHERE A = 1 OR B = 2`          | → 가급적 `UNION ALL` 분리                   |
+| 서브쿼리   | `WHERE dept_id IN (SELECT ...)` | → `JOIN`으로 변경 권장                       |
+
+---
+
+## ✅ 4. 조인 최적화
+
+### 🔹 조인 순서 중요
+
+* **레코드 수가 적은 테이블부터 조인**
+* 조인 키에 **인덱스 존재 여부** 확인
+
+```sql
+SELECT * 
+FROM emp e 
+JOIN dept d ON e.dept_id = d.dept_id
+WHERE e.job = 'SALES';
+```
+
+→ `emp.job`, `e.dept_id`에 인덱스가 있다면 속도 개선
+
+---
+
+## ✅ 5. LIMIT / ROWNUM 활용 (불필요한 연산 줄이기)
+
+```sql
+SELECT * 
+FROM employees 
+WHERE dept = 'SALES'
+ORDER BY salary DESC
+LIMIT 10;
+```
+
+→ 전체 정렬하지 않고 일부만 출력 = 속도 개선
+
+---
+
+## ✅ 6. SELECT \* 지양
+
+* 불필요한 칼럼도 모두 읽게 되어 **I/O 증가**
+
+```sql
+-- 비효율
+SELECT * FROM employees;
+
+-- 효율
+SELECT emp_id, name FROM employees;
+```
+
+---
+
+## ✅ 7. 집계 함수 최적화
+
+* GROUP BY 전에 WHERE로 **데이터 줄이기**
+
+```sql
+-- 비효율
+SELECT dept, AVG(salary)
+FROM employees
+GROUP BY dept;
+
+-- 효율
+SELECT dept, AVG(salary)
+FROM employees
+WHERE salary > 2000
+GROUP BY dept;
+```
+
+---
+
+## ✅ 8. 파티셔닝 (Partitioning) – 대용량 테이블 처리
+
+* **특정 컬럼 기준으로 테이블을 나눠 저장**
+* 쿼리 시 파티션만 검색 → 속도 개선
+
+```sql
+-- 예시 (월별 파티셔닝)
+SELECT * FROM sales
+WHERE sale_month = '2024-12';
+```
+
+→ 해당 월 파티션만 조회
+
+---
+
+## ✅ 9. 정규화 vs 성능: 반정규화 필요성
+
+* **정규화**: 데이터 중복 줄이고 일관성 높임 (성능은 떨어질 수 있음)
+* **반정규화**: 성능 위해 일부 중복 허용 (조회 속도↑)
+
+→ 보고서용 조회는 반정규화 테이블 사용하기도 함
+
+---
+
+## ✅ 핵심 정리표
+
+| 주제        | 설명           | 권장사항                |
+| --------- | ------------ | ------------------- |
+| 인덱스       | 검색 속도 향상     | 자주 검색되는 컬럼          |
+| 실행계획      | SQL 실행 흐름 확인 | `EXPLAIN PLAN` 사용   |
+| 함수 사용     | 인덱스 무효화      | `WHERE UPPER()` 피하기 |
+| 서브쿼리      | 성능 저하 우려     | JOIN으로 변경 권장        |
+| OR 조건     | 인덱스 무시       | `UNION ALL` 분해      |
+| SELECT \* | 불필요한 I/O     | 필요한 컬럼만 SELECT      |
+| 조인 순서     | 많은 행 조인 시 중요 | 작은 테이블부터 조인         |
+| 파티셔닝      | 대용량 테이블 분산   | 날짜 등으로 분할 저장        |
+
+---
+
+필요하면 **느린 SQL → 빠르게 고친 예제**도 단계별로 만들어줄게. 원할까?
