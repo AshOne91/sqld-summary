@@ -1,0 +1,193 @@
+좋아, SQLD 07. **고급 SQL 활용**은 단순 SELECT 문을 넘어서 **분석, 집계, 그룹 처리, 조건부 로직, 트랜잭션 제어 등**을 익히는 단계야. 이 파트는 실제 업무에서 **데이터 분석·집계·로직 처리 자동화** 등에 매우 많이 쓰여. 아래에 **개념 → 주요 문법 → 예시 → 주의사항** 흐름으로 정리해줄게.
+
+---
+
+## ✅ 1. 집계 함수 (Aggregate Functions)
+
+### 🔹 주요 집계 함수
+
+* `COUNT(*)`: 행 수
+* `SUM(컬럼)`: 총합
+* `AVG(컬럼)`: 평균
+* `MAX(컬럼)`, `MIN(컬럼)`: 최댓값/최솟값
+
+```sql
+SELECT dept_id, COUNT(*) AS 인원수, AVG(salary) AS 평균급여
+FROM employees
+GROUP BY dept_id;
+```
+
+---
+
+## ✅ 2. 그룹 함수 + GROUP BY / HAVING
+
+### 🔹 GROUP BY
+
+* 특정 컬럼 기준으로 묶어서 집계
+
+### 🔹 HAVING
+
+* **집계 결과에 조건**을 줌 (`WHERE`은 개별 행 조건)
+
+```sql
+SELECT dept_id, COUNT(*) AS 인원수
+FROM employees
+GROUP BY dept_id
+HAVING COUNT(*) >= 5;
+```
+
+---
+
+## ✅ 3. CASE 표현식 (조건 분기)
+
+### 🔹 CASE WHEN THEN ELSE END
+
+* SQL에서 if-else 역할
+
+```sql
+SELECT name,
+  CASE 
+    WHEN salary >= 5000 THEN '고소득자'
+    WHEN salary >= 3000 THEN '중소득자'
+    ELSE '저소득자'
+  END AS 소득등급
+FROM employees;
+```
+
+---
+
+## ✅ 4. 윈도우 함수 (Window Functions, 분석 함수)
+
+### 🔹 개념
+
+* 집계 함수처럼 보이지만 **행을 그룹으로 묶지 않고, 개별 행에 분석 값을 부여**
+
+### 🔹 주요 함수
+
+* `RANK() OVER(...)`: 순위 (동일 순위는 건너뜀)
+* `DENSE_RANK() OVER(...)`: 동순위 붙이고 바로 다음 순위
+* `ROW_NUMBER() OVER(...)`: 고유한 순번
+* `SUM()/AVG()/MAX() OVER(...)`: 누적 집계 가능
+
+### 🔹 예시
+
+```sql
+SELECT name, dept_id, salary,
+  RANK() OVER(PARTITION BY dept_id ORDER BY salary DESC) AS 급여순위
+FROM employees;
+```
+
+📌 `PARTITION BY`: 그룹 기준
+📌 `ORDER BY`: 순위 매기는 기준
+
+---
+
+## ✅ 5. 인라인 뷰 (서브쿼리를 FROM절에 사용)
+
+```sql
+SELECT name, salary
+FROM (
+  SELECT name, salary
+  FROM employees
+  WHERE dept_id = 10
+  ORDER BY salary DESC
+) A
+WHERE ROWNUM <= 3;
+```
+
+→ 부서 10번의 급여 상위 3명
+
+---
+
+## ✅ 6. WITH 절 (공통 테이블 표현식, CTE)
+
+### 🔹 복잡한 서브쿼리를 **이름 붙여 재사용** 가능
+
+```sql
+WITH high_salary AS (
+  SELECT emp_id, name, salary
+  FROM employees
+  WHERE salary > 5000
+)
+SELECT name
+FROM high_salary
+WHERE salary < 7000;
+```
+
+---
+
+## ✅ 7. ROLLUP / CUBE (다차원 집계)
+
+### 🔹 ROLLUP: 계층별 소계
+
+```sql
+SELECT dept_id, job_id, SUM(salary)
+FROM employees
+GROUP BY ROLLUP (dept_id, job_id);
+```
+
+→ 부서별+직무별 합계, 부서 소계, 전체 합계
+
+### 🔹 CUBE: 모든 조합의 소계
+
+```sql
+SELECT dept_id, job_id, SUM(salary)
+FROM employees
+GROUP BY CUBE (dept_id, job_id);
+```
+
+---
+
+## ✅ 8. MERGE (UPSERT)
+
+### 🔹 조건에 따라 INSERT 또는 UPDATE
+
+```sql
+MERGE INTO employees A
+USING new_employees B
+ON (A.emp_id = B.emp_id)
+WHEN MATCHED THEN
+  UPDATE SET A.salary = B.salary
+WHEN NOT MATCHED THEN
+  INSERT (emp_id, name, salary) VALUES (B.emp_id, B.name, B.salary);
+```
+
+---
+
+## ✅ 9. DML 트랜잭션 제어 (COMMIT/ROLLBACK)
+
+### 🔹 COMMIT: 변경 사항 확정
+
+### 🔹 ROLLBACK: 변경 사항 취소
+
+```sql
+BEGIN;
+
+UPDATE employees SET salary = salary + 100;
+
+-- 오류 발생 시 취소 가능
+ROLLBACK;
+
+-- 이상 없으면 확정
+COMMIT;
+```
+
+---
+
+## ✅ 정리 요약표
+
+| 기능     | 주요 문법                 | 설명                |
+| ------ | --------------------- | ----------------- |
+| 집계     | `COUNT`, `SUM`, `AVG` | 그룹별 요약            |
+| 그룹 처리  | `GROUP BY`, `HAVING`  | 조건 있는 집계          |
+| 조건 처리  | `CASE WHEN`           | 조건별 값 부여          |
+| 분석 함수  | `RANK`, `ROW_NUMBER`  | 행 별 분석            |
+| 인라인 뷰  | `(SELECT...) AS A`    | 서브쿼리를 테이블처럼       |
+| WITH 절 | `WITH 이름 AS (...)`    | 공통 쿼리 재사용         |
+| 다차원 집계 | `ROLLUP`, `CUBE`      | 소계 및 전체 요약        |
+| UPSERT | `MERGE INTO ...`      | 조건부 INSERT/UPDATE |
+| 트랜잭션   | `COMMIT`, `ROLLBACK`  | 변경 확정 또는 취소       |
+
+---
+
+필요하면 각 문법별로 연습용 문제나 실습 쿼리도 만들어줄 수 있어. 원해?
